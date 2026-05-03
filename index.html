@@ -2,101 +2,85 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador 3D - Shadow Monarch</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Visualizador 3D Mobile</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #121116; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #121116; }
         #loading {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: #CD1C67; font-size: 18px; z-index: 10;
-            text-align: center; border: 2px solid #CD1C67;
-            padding: 20px; background: rgba(0,0,0,0.8);
-            border-radius: 8px;
-        }
-        #info {
-            position: absolute; bottom: 10px; width: 100%;
-            text-align: center; color: #555; font-size: 11px;
+            color: #CD1C67; font-family: sans-serif;
+            text-align: center; z-index: 10;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
 
-<div id="loading">AGUARDANDO ARQUIVO...</div>
-<div id="info">Shadow Monarch System v1.0</div>
+<div id="loading">INICIANDO...</div>
 
-<script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-        }
-    }
-</script>
-
-<script type="module">
-    import * as THREE from 'three';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
+<script>
+    // 1. Configuração Básica
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x121116);
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 2, 5);
+    camera.position.set(0, 2, 8);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Otimiza bateria no mobile
     document.body.appendChild(renderer.domElement);
 
-    // Luzes
-    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const light = new THREE.DirectionalLight(0xffffff, 2);
-    light.position.set(2, 5, 2);
-    scene.add(light);
+    // 2. Luzes (Importante para o modelo não ficar preto)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambientLight);
+    
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    sunLight.position.set(5, 10, 5);
+    scene.add(sunLight);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
+    // 3. Controles Touch
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    const loader = new GLTFLoader();
+    // 4. Carregamento
+    const loader = new THREE.GLTFLoader();
 
-    // IMPORTANTE: O nome do arquivo abaixo DEVE ser idêntico ao que está na pasta
-    const arquivoModelo = 'modelo.glb'; 
+    // TENTE USAR O LINK DO GITHUB PARA TESTAR SE O ARQUIVO LOCAL ESTÁ BLOQUEADO
+    const url = 'https://raw.githubusercontent.com/mixcine/php/main/modelo.glb';
 
-    loader.load(
-        arquivoModelo, 
-        (gltf) => {
-            scene.add(gltf.scene);
+    loader.load(url, 
+        function (gltf) {
+            const model = gltf.scene;
             
-            // Ajuste de escala e centralização
-            const box = new THREE.Box3().setFromObject(gltf.scene);
+            // Ajustar tamanho automaticamente
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3()).length();
             const center = box.getCenter(new THREE.Vector3());
-            gltf.scene.position.sub(center);
+
+            model.position.x += (model.position.x - center.x);
+            model.position.y += (model.position.y - center.y);
+            model.position.z += (model.position.z - center.z);
             
+            scene.add(model);
             document.getElementById('loading').style.display = 'none';
-            console.log("✅ Sucesso: O arquivo " + arquivoModelo + " foi carregado.");
-        },
-        (xhr) => {
-            const percent = (xhr.loaded / xhr.total) * 100;
-            if (percent > 0) {
-                document.getElementById('loading').innerText = `CARREGANDO: ${Math.round(percent)}%`;
+        }, 
+        function (xhr) {
+            if (xhr.lengthComputable) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                document.getElementById('loading').innerText = "CARREGANDO: " + percent + "%";
             }
         },
-        (error) => {
-            console.error("❌ Erro Detalhado:", error);
-            
-            let msg = "ERRO AO CARREGAR";
-            if (window.location.protocol === 'file:') {
-                msg = "ERRO DE SEGURANÇA:<br><small>Navegadores bloqueiam arquivos 3D abertos direto da pasta.<br>Use o <b>Live Server</b> do VS Code.</small>";
-            } else {
-                msg = `ARQUIVO NÃO ENCONTRADO:<br><small>Verifique se o nome <b>${arquivoModelo}</b> está correto e na mesma pasta do HTML.</small>`;
-            }
-            document.getElementById('loading').innerHTML = msg;
+        function (error) {
+            console.error(error);
+            document.getElementById('loading').innerText = "ERRO AO CARREGAR MODELO";
         }
     );
 
+    // 5. Loop
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
@@ -104,7 +88,8 @@
     }
     animate();
 
-    window.addEventListener('resize', () => {
+    // 6. Redimensionar
+    window.addEventListener('resize', function() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
